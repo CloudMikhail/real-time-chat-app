@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Real-time Chat App</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/emoji-mart@latest/css/emoji-mart.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/emoji-mart@latest/dist/browser.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; height: 100vh; transition: all 0.3s; }
+        #chat-container { width: 80%; height: 80vh; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 0 10px rgba(0,0,0,0.1); display: flex; flex-direction: column; }
+        #chat-messages { flex-grow: 1; overflow-y: auto; padding: 20px; }
+        #chat-form { display: flex; padding: 10px; background-color: #f0f0f0; }
+        #chat-input { flex-grow: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; }
+        button { padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; margin-left: 10px; cursor: pointer; font-size: 16px; }
+        .message { margin-bottom: 10px; padding: 10px; border-radius: 4px; max-width: 70%; position: relative; }
+        .user-message { background-color: #e6f2ff; align-self: flex-end; }
+        .system-message { background-color: rgba(240, 240, 240, 0.8); font-style: italic; color: #333; }
+        .timestamp { font-size: 0.8em; color: #888; margin-left: 10px; }
+        #toolbar { display: flex; padding: 10px; background-color: #f0f0f0; border-bottom: 1px solid #ddd; }
+        #toolbar select, #toolbar button { margin-right: 10px; }
+        #theme-selector { position: absolute; top: 10px; right: 10px; }
+        .message-content { color: #000; }
+        .user-id { font-weight: bold; }
+        body.dark-theme .message-content { color: #ffffff; }
+        body.dark-theme .user-message { background-color: #4a6fa5; }
+        #nickname-modal { display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.4); }
+        .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 300px; text-align: center; box-sizing: border-box; }
+        #nickname-input { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; }
+        #nickname-submit { width: 100%; padding: 10px; margin-top: 10px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        #nickname-submit:hover { background-color: #0056b3; }
+        #typing-indicator { font-style: italic; color: #888; margin-top: 5px; }
+        .message-actions { position: absolute; right: 5px; top: 5px; display: none; }
+        .message:hover .message-actions { display: block; }
+        .message-actions button { background: none; border: none; cursor: pointer; color: #007bff; padding: 2px; }
+        .reactions { display: flex; flex-wrap: wrap; margin-top: 5px; }
+        .reaction { background-color: #f0f0f0; border-radius: 12px; padding: 2px 6px; margin-right: 5px; margin-bottom: 5px; font-size: 0.9em; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <div id="toolbar">
+            <select id="font-selector">
+                <option value="Arial">Arial</option>
+                <option value="Verdana">Verdana</option>
+                <option value="Times New Roman">Times New Roman</option>
+                <option value="Courier">Courier</option>
+            </select>
+            <button id="bold-btn"><i class="fas fa-bold"></i></button>
+            <button id="italic-btn"><i class="fas fa-italic"></i></button>
+            <button id="underline-btn"><i class="fas fa-underline"></i></button>
+            <button id="emoji-btn"><i class="far fa-smile"></i></button>
+        </div>
+        <div id="chat-messages"></div>
+        <div id="typing-indicator"></div>
+        <form id="chat-form">
+            <input id="chat-input" type="text" autocomplete="off" placeholder="Type a message...">
+            <button type="submit">Send</button>
+        </form>
+    </div>
+    <select id="theme-selector">
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+        <option value="nature">Nature</option>
+        <option value="ocean">Ocean</option>
+    </select>
+
+    <div id="nickname-modal">
+        <div class="modal-content">
+            <h2>Welcome to the Chat!</h2>
+            <p>Please enter a nickname to join:</p>
+            <input type="text" id="nickname-input" placeholder="Your nickname">
+            <button id="nickname-submit">Join Chat</button>
+        </div>
+    </div>
+
+    <div id="emoji-picker" style="display: none;"></div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', (event) => {
+        console.log('Chat script initialized');
+
+        const socket = io();
+        console.log('Attempting to connect to Socket.IO server');
+
+        const chatForm = document.getElementById('chat-form');
+        const chatInput = document.getElementById('chat-input');
+        const chatMessages = document.getElementById('chat-messages');
+        const fontSelector = document.getElementById('font-selector');
+        const boldBtn = document.getElementById('bold-btn');
+        const italicBtn = document.getElementById('italic-btn');
+        const underlineBtn = document.getElementById('underline-btn');
+        const themeSelector = document.getElementById('theme-selector');
+        const nicknameModal = document.getElementById('nickname-modal');
+        const nicknameInput = document.getElementById('nickname-input');
+        const nicknameSubmit = document.getElementById('nickname-submit');
+        const typingIndicator = document.getElementById('typing-indicator');
+        const emojiBtn = document.getElementById('emoji-btn');
+        const emojiPicker = document.getElementById('emoji-picker');
+
+        let currentStyle = { bold: false, italic: false, underline: false };
+        let userId = '';
+        let userColor = '';
+        let userInfoDisplayed = false;
+        let userNickname = '';
+        let typingTimeout;
+        let editingMessageId = null;
+
+        function clearMessages() {
+            chatMessages.innerHTML = '';
+            userInfoDisplayed = false;
+        }
+
+        socket.on('connect', () => {
+            console.log('Successfully connected to Socket.IO server');
+            clearMessages();
+            nicknameModal.style.display = 'block';
+        });
+
+        socket.on('connect_error', (error) => {
+            console.error('Socket.IO connection error:', error);
+        });
+
+        nicknameSubmit.addEventListener('click', () => {
+            userNickname = nicknameInput.value.trim();
+            if (userNickname) {
+                nicknameModal.style.display = 'none';
+                socket.emit('set nickname', userNickname);
+            }
+        });
+
+        socket.on('user info', (info) => {
+            userId = info.id;
+            userColor = info.color;
+            console.log('Received user info:', info);
+            if (!userInfoDisplayed) {
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('message', 'system-message');
+                messageElement.textContent = `You are ${userNickname} (${userId})`;
+                chatMessages.appendChild(messageElement);
+                userInfoDisplayed = true;
+            }
+        });
+
+        chatForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (chatInput.value) {
+                const style = {
+                    font: fontSelector.value,
+                    ...currentStyle
+                };
+                if (editingMessageId) {
+                    socket.emit('edit message', { id: editingMessageId, text: chatInput.value, style });
+                    editingMessageId = null;
+                } else {
+                    socket.emit('chat message', { text: chatInput.value, style, userId: userId, nickname: userNickname });
+                }
+                chatInput.value = '';
+            }
+        });
+
+        socket.on('chat message', (data) => {
+            console.log('Received message:', data);
+            displayMessage(data);
+        });
+
+        function displayMessage(data) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message');
+            messageElement.setAttribute('data-message-id', data.id);
+            if (data.userId === userId) {
+                messageElement.classList.add('user-message');
+            }
+            
+            const nicknameSpan = document.createElement('span');
+            nicknameSpan.classList.add('user-id');
+            nicknameSpan.style.color = data.color || userColor;
+            nicknameSpan.textContent = `${data.nickname} (${data.userId}): `;
+
+            const contentSpan = document.createElement('span');
+            contentSpan.classList.add('message-content');
+            contentSpan.style.fontFamily = data.style.font;
+            contentSpan.style.fontWeight = data.style.bold ? 'bold' : 'normal';
+            contentSpan.style.fontStyle = data.style.italic ? 'italic' : 'normal';
+            contentSpan.style.textDecoration = data.style.underline ? 'underline' : 'none';
+            contentSpan.textContent = data.text;
+
+            const timestampSpan = document.createElement('span');
+            timestampSpan.classList.add('timestamp');
+            timestampSpan.textContent = new Date().toLocaleTimeString();
+
+            const actionsSpan = document.createElement('span');
+            actionsSpan.classList.add('message-actions');
+            if (data.userId === userId) {
+                const editBtn = document.createElement('button');
+                editBtn.innerHTML = '<i class="fas fa-edit"></i>';
+                editBtn.onclick = () => editMessage(data.id, data.text);
+                const deleteBtn = document.createElement('button');
+                deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+                deleteBtn.onclick = () => deleteMessage(data.id);
+                actionsSpan.appendChild(editBtn);
+                actionsSpan.appendChild(deleteBtn);
+            }
+            const reactBtn = document.createElement('button');
+            reactBtn.innerHTML = '<i class="far fa-smile"></i>';
+            reactBtn.onclick = () => addReaction(data.id);
+            actionsSpan.appendChild(reactBtn);
+
+            const reactionsDiv = document.createElement('div');
+            reactionsDiv.classList.add('reactions');
+
+            messageElement.appendChild(nicknameSpan);
+            messageElement.appendChild(contentSpan);
+            messageElement.appendChild(timestampSpan);
+            messageElement.appendChild(actionsSpan);
+            messageElement.appendChild(reactionsDiv);
+            
+            chatMessages.appendChild(messageElement);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        socket.on('user event', (message) => {
+            console.log('User event:', message);
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message', 'system-message');
+            messageElement.textContent = message;
+            chatMessages.appendChild(messageElement);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        });
+
+        socket.on('typing', (data) => {
+            if (data.userId !== userId) {
+                typingIndicator.textContent = `${data.nickname} is typing...`;
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => {
+                    typingIndicator.textContent = '';
+                }, 3000);
+            }
+        });
+
+        socket.on('message edited', (data) => {
+            const messageElement = document.querySelector(`[data-message-id="${data.id}"]`);
+            if (messageElement) {
+                const contentSpan = messageElement.querySelector('.message-content');
+                contentSpan.textContent = data.text;
+                contentSpan.style.fontFamily = data.style.font;
+                contentSpan.style.fontWeight = data.style.bold ? 'bold' : 'normal';
+                contentSpan.style.fontStyle = data.style.italic ? 'italic' : 'normal';
+                contentSpan.style.textDecoration = data.style.underline ? 'underline' : 'none';
+            }
+        });
+
+        socket.on('message deleted', (id) => {
+            const messageElement = document.querySelector(`[data-message-id="${id}"]`);
+            if (messageElement) {
+                messageElement.remove();
+            }
+        });
+
+        socket.on('reaction added', (data) => {
+            const messageElement = document.querySelector(`[data-message-id="${data.messageId}"]`);
+            if (messageElement) {
+                const reactionsDiv = messageElement.querySelector('.reactions');
+                const reactionSpan = document.createElement('span');
+                reactionSpan.classList.add('reaction');
+                reactionSpan.textContent = `${data.reaction} ${data.count}`;
+                reactionSpan.onclick = () => socket.emit('add reaction', { messageId: data.messageId, reaction: data.reaction });
+                reactionsDiv.appendChild(reactionSpan);
+            }
+        });
+
+        chatInput.addEventListener('input', () => {
+            socket.emit('typing', { userId, nickname: userNickname });
+        });
+
+        function editMessage(id, text) {
+            editingMessageId = id;
+            chatInput.value = text;
+            chatInput.focus();
+        }
+
+        function deleteMessage(id) {
+            socket.emit('delete message', id);
+        }
+
+        function addReaction(messageId) {
+            // This function would typically open an emoji picker
+            // For simplicity, let's just add a default reaction
+            socket.emit('add reaction', { messageId, reaction: '👍' });
+        }
+
+        boldBtn.addEventListener('click', () => toggleStyle('bold'));
+        italicBtn.addEventListener('click', () => toggleStyle('italic'));
+        underlineBtn.addEventListener('click', () => toggleStyle('under
