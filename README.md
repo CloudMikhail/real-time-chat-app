@@ -1,2 +1,2 @@
-http://localhost:3003
-force quit the server when not working on it. taskkill /F /IM node.exe /T
+# real-time-chat-app
+An enhanced chat application which offers user customizable text style's, themes, and more!.
