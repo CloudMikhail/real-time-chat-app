@@ -91,20 +91,29 @@ io.on('connection', (socket) => {
     socket.on('add reaction', (data) => {
       const message = messages.get(data.messageId);
       if (message) {
+        if (!message.reactions) {
+          message.reactions = {};
+        }
+        
         if (!message.reactions[data.reaction]) {
           message.reactions[data.reaction] = new Set();
         }
-        const userReacted = message.reactions[data.reaction].has(socket.id);
-        if (userReacted) {
+
+        if (message.reactions[data.reaction].has(socket.id)) {
           message.reactions[data.reaction].delete(socket.id);
         } else {
           message.reactions[data.reaction].add(socket.id);
         }
-        const count = message.reactions[data.reaction].size;
-        io.emit('reaction added', {
+
+        // Convert Set to Array for JSON serialization
+        const serializableReactions = {};
+        for (const [emoji, users] of Object.entries(message.reactions)) {
+          serializableReactions[emoji] = Array.from(users);
+        }
+
+        io.emit('reaction updated', {
           messageId: data.messageId,
-          reaction: data.reaction,
-          count: count
+          reactions: serializableReactions
         });
       }
     });

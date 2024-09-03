@@ -5,8 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Enhanced Real-time Chat App</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/emoji-mart@latest/css/emoji-mart.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/emoji-mart@latest/dist/browser.js"></script>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; height: 100vh; transition: all 0.3s; }
         #chat-container { width: 80%; height: 80vh; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 0 10px rgba(0,0,0,0.1); display: flex; flex-direction: column; }
@@ -34,8 +32,11 @@
         .message-actions { position: absolute; right: 5px; top: 5px; display: none; }
         .message:hover .message-actions { display: block; }
         .message-actions button { background: none; border: none; cursor: pointer; color: #007bff; padding: 2px; }
-        .reactions { display: flex; flex-wrap: wrap; margin-top: 5px; }
-        .reaction { background-color: #f0f0f0; border-radius: 12px; padding: 2px 6px; margin-right: 5px; margin-bottom: 5px; font-size: 0.9em; cursor: pointer; }
+        .reactions { display: flex; margin-top: 5px; }
+        .reaction { background-color: #f0f0f0; border-radius: 12px; padding: 2px 6px; margin-right: 5px; font-size: 0.9em; cursor: pointer; }
+        .reaction-options { display: none; background-color: white; border: 1px solid #ddd; border-radius: 4px; padding: 5px; }
+        .message:hover .reaction-options { display: flex; }
+        .reaction-option { cursor: pointer; margin: 0 5px; }
     </style>
 </head>
 <body>
@@ -50,7 +51,6 @@
             <button id="bold-btn"><i class="fas fa-bold"></i></button>
             <button id="italic-btn"><i class="fas fa-italic"></i></button>
             <button id="underline-btn"><i class="fas fa-underline"></i></button>
-            <button id="emoji-btn"><i class="far fa-smile"></i></button>
         </div>
         <div id="chat-messages"></div>
         <div id="typing-indicator"></div>
@@ -75,8 +75,6 @@
         </div>
     </div>
 
-    <div id="emoji-picker" style="display: none;"></div>
-
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script>
     document.addEventListener('DOMContentLoaded', (event) => {
@@ -98,8 +96,6 @@
             const nicknameInput = document.getElementById('nickname-input');
             const nicknameSubmit = document.getElementById('nickname-submit');
             const typingIndicator = document.getElementById('typing-indicator');
-            const emojiBtn = document.getElementById('emoji-btn');
-            const emojiPicker = document.getElementById('emoji-picker');
 
             let currentStyle = { bold: false, italic: false, underline: false };
             let userId = '';
@@ -204,22 +200,35 @@
                     actionsSpan.appendChild(editBtn);
                     actionsSpan.appendChild(deleteBtn);
                 }
-                const reactBtn = document.createElement('button');
-                reactBtn.innerHTML = '<i class="far fa-smile"></i>';
-                reactBtn.onclick = () => addReaction(data.id);
-                actionsSpan.appendChild(reactBtn);
 
                 const reactionsDiv = document.createElement('div');
                 reactionsDiv.classList.add('reactions');
+
+                const reactionOptionsDiv = document.createElement('div');
+                reactionOptionsDiv.classList.add('reaction-options');
+                
+                const emojiOptions = ['👍', '👎', '😃', '🎉'];
+                emojiOptions.forEach(emoji => {
+                    const emojiSpan = document.createElement('span');
+                    emojiSpan.textContent = emoji;
+                    emojiSpan.classList.add('reaction-option');
+                    emojiSpan.onclick = () => addReaction(data.id, emoji);
+                    reactionOptionsDiv.appendChild(emojiSpan);
+                });
 
                 messageElement.appendChild(nicknameSpan);
                 messageElement.appendChild(contentSpan);
                 messageElement.appendChild(timestampSpan);
                 messageElement.appendChild(actionsSpan);
                 messageElement.appendChild(reactionsDiv);
+                messageElement.appendChild(reactionOptionsDiv);
                 
                 chatMessages.appendChild(messageElement);
                 chatMessages.scrollTop = chatMessages.scrollHeight;
+
+                if (data.reactions) {
+                    updateReactions(data.id, data.reactions);
+                }
             }
 
             socket.on('user event', (message) => {
@@ -260,17 +269,26 @@
                 }
             });
 
-            socket.on('reaction added', (data) => {
-                const messageElement = document.querySelector(`[data-message-id="${data.messageId}"]`);
+            socket.on('reaction updated', (data) => {
+                updateReactions(data.messageId, data.reactions);
+            });
+
+            function updateReactions(messageId, reactions) {
+                const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
                 if (messageElement) {
                     const reactionsDiv = messageElement.querySelector('.reactions');
-                    const reactionSpan = document.createElement('span');
-                    reactionSpan.classList.add('reaction');
-                    reactionSpan.textContent = `${data.reaction} ${data.count}`;
-                    reactionSpan.onclick = () => socket.emit('add reaction', { messageId: data.messageId, reaction: data.reaction });
-                    reactionsDiv.appendChild(reactionSpan);
+                    reactionsDiv.innerHTML = ''; // Clear existing reactions
+
+                    Object.entries(reactions).forEach(([emoji, users]) => {
+                        if (users.length > 0) {
+                            const reactionSpan = document.createElement('span');
+                            reactionSpan.classList.add('reaction');
+                            reactionSpan.textContent = `${emoji} ${users.length}`;
+                            reactionsDiv.appendChild(reactionSpan);
+                        }
+                    });
                 }
-            });
+            }
 
             chatInput.addEventListener('input', () => {
                 socket.emit('typing', { userId, nickname: userNickname });
@@ -286,10 +304,8 @@
                 socket.emit('delete message', id);
             }
 
-            function addReaction(messageId) {
-                // This function would typically open an emoji picker
-                // For simplicity, let's just add a default reaction
-                socket.emit('add reaction', { messageId, reaction: '👍' });
+            function addReaction(messageId, reaction) {
+                socket.emit('add reaction', { messageId, reaction });
             }
 
             boldBtn.addEventListener('click', () => toggleStyle('bold'));
