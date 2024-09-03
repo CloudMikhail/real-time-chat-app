@@ -1,6 +1,6 @@
 # 🚀 Real-Time Chat Application
 
-Welcome to our cutting-edge real-time chat application! This project demonstrates the power of modern web technologies to create a seamless, interactive chatting experience.
+Welcome to my cutting-edge real-time chat application! This project demonstrates the power of modern web technologies to create a seamless, interactive chatting experience.
 
 ## 🌟 Features
 
@@ -70,4 +70,4 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 
 ---
 
-Built with ❤️ by [Your Name/Team Name]
+Built by Mikhail Tsegaye 
