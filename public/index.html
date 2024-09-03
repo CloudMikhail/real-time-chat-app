@@ -82,215 +82,264 @@
     document.addEventListener('DOMContentLoaded', (event) => {
         console.log('Chat script initialized');
 
-        const socket = io();
-        console.log('Attempting to connect to Socket.IO server');
+        try {
+            const socket = io();
+            console.log('Attempting to connect to Socket.IO server');
 
-        const chatForm = document.getElementById('chat-form');
-        const chatInput = document.getElementById('chat-input');
-        const chatMessages = document.getElementById('chat-messages');
-        const fontSelector = document.getElementById('font-selector');
-        const boldBtn = document.getElementById('bold-btn');
-        const italicBtn = document.getElementById('italic-btn');
-        const underlineBtn = document.getElementById('underline-btn');
-        const themeSelector = document.getElementById('theme-selector');
-        const nicknameModal = document.getElementById('nickname-modal');
-        const nicknameInput = document.getElementById('nickname-input');
-        const nicknameSubmit = document.getElementById('nickname-submit');
-        const typingIndicator = document.getElementById('typing-indicator');
-        const emojiBtn = document.getElementById('emoji-btn');
-        const emojiPicker = document.getElementById('emoji-picker');
+            const chatForm = document.getElementById('chat-form');
+            const chatInput = document.getElementById('chat-input');
+            const chatMessages = document.getElementById('chat-messages');
+            const fontSelector = document.getElementById('font-selector');
+            const boldBtn = document.getElementById('bold-btn');
+            const italicBtn = document.getElementById('italic-btn');
+            const underlineBtn = document.getElementById('underline-btn');
+            const themeSelector = document.getElementById('theme-selector');
+            const nicknameModal = document.getElementById('nickname-modal');
+            const nicknameInput = document.getElementById('nickname-input');
+            const nicknameSubmit = document.getElementById('nickname-submit');
+            const typingIndicator = document.getElementById('typing-indicator');
+            const emojiBtn = document.getElementById('emoji-btn');
+            const emojiPicker = document.getElementById('emoji-picker');
 
-        let currentStyle = { bold: false, italic: false, underline: false };
-        let userId = '';
-        let userColor = '';
-        let userInfoDisplayed = false;
-        let userNickname = '';
-        let typingTimeout;
-        let editingMessageId = null;
+            let currentStyle = { bold: false, italic: false, underline: false };
+            let userId = '';
+            let userColor = '';
+            let userInfoDisplayed = false;
+            let userNickname = '';
+            let typingTimeout;
+            let editingMessageId = null;
 
-        function clearMessages() {
-            chatMessages.innerHTML = '';
-            userInfoDisplayed = false;
-        }
-
-        socket.on('connect', () => {
-            console.log('Successfully connected to Socket.IO server');
-            clearMessages();
-            nicknameModal.style.display = 'block';
-        });
-
-        socket.on('connect_error', (error) => {
-            console.error('Socket.IO connection error:', error);
-        });
-
-        nicknameSubmit.addEventListener('click', () => {
-            userNickname = nicknameInput.value.trim();
-            if (userNickname) {
-                nicknameModal.style.display = 'none';
-                socket.emit('set nickname', userNickname);
+            function clearMessages() {
+                chatMessages.innerHTML = '';
+                userInfoDisplayed = false;
             }
-        });
 
-        socket.on('user info', (info) => {
-            userId = info.id;
-            userColor = info.color;
-            console.log('Received user info:', info);
-            if (!userInfoDisplayed) {
-                const messageElement = document.createElement('div');
-                messageElement.classList.add('message', 'system-message');
-                messageElement.textContent = `You are ${userNickname} (${userId})`;
-                chatMessages.appendChild(messageElement);
-                userInfoDisplayed = true;
-            }
-        });
+            socket.on('connect', () => {
+                console.log('Successfully connected to Socket.IO server');
+                clearMessages();
+                nicknameModal.style.display = 'block';
+            });
 
-        chatForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            if (chatInput.value) {
-                const style = {
-                    font: fontSelector.value,
-                    ...currentStyle
-                };
-                if (editingMessageId) {
-                    socket.emit('edit message', { id: editingMessageId, text: chatInput.value, style });
-                    editingMessageId = null;
-                } else {
-                    socket.emit('chat message', { text: chatInput.value, style, userId: userId, nickname: userNickname });
+            socket.on('connect_error', (error) => {
+                console.error('Socket.IO connection error:', error);
+            });
+
+            nicknameSubmit.addEventListener('click', () => {
+                userNickname = nicknameInput.value.trim();
+                if (userNickname) {
+                    nicknameModal.style.display = 'none';
+                    socket.emit('set nickname', userNickname);
                 }
-                chatInput.value = '';
-            }
-        });
+            });
 
-        socket.on('chat message', (data) => {
-            console.log('Received message:', data);
-            displayMessage(data);
-        });
+            socket.on('user info', (info) => {
+                userId = info.id;
+                userColor = info.color;
+                console.log('Received user info:', info);
+                if (!userInfoDisplayed) {
+                    const messageElement = document.createElement('div');
+                    messageElement.classList.add('message', 'system-message');
+                    messageElement.textContent = `You are ${userNickname} (${userId})`;
+                    chatMessages.appendChild(messageElement);
+                    userInfoDisplayed = true;
+                }
+            });
 
-        function displayMessage(data) {
-            const messageElement = document.createElement('div');
-            messageElement.classList.add('message');
-            messageElement.setAttribute('data-message-id', data.id);
-            if (data.userId === userId) {
-                messageElement.classList.add('user-message');
-            }
-            
-            const nicknameSpan = document.createElement('span');
-            nicknameSpan.classList.add('user-id');
-            nicknameSpan.style.color = data.color || userColor;
-            nicknameSpan.textContent = `${data.nickname} (${data.userId}): `;
+            chatForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                if (chatInput.value) {
+                    const style = {
+                        font: fontSelector.value,
+                        ...currentStyle
+                    };
+                    if (editingMessageId) {
+                        socket.emit('edit message', { id: editingMessageId, text: chatInput.value, style });
+                        editingMessageId = null;
+                    } else {
+                        socket.emit('chat message', { text: chatInput.value, style, userId: userId, nickname: userNickname });
+                    }
+                    chatInput.value = '';
+                }
+            });
 
-            const contentSpan = document.createElement('span');
-            contentSpan.classList.add('message-content');
-            contentSpan.style.fontFamily = data.style.font;
-            contentSpan.style.fontWeight = data.style.bold ? 'bold' : 'normal';
-            contentSpan.style.fontStyle = data.style.italic ? 'italic' : 'normal';
-            contentSpan.style.textDecoration = data.style.underline ? 'underline' : 'none';
-            contentSpan.textContent = data.text;
+            socket.on('chat message', (data) => {
+                console.log('Received message:', data);
+                displayMessage(data);
+            });
 
-            const timestampSpan = document.createElement('span');
-            timestampSpan.classList.add('timestamp');
-            timestampSpan.textContent = new Date().toLocaleTimeString();
+            function displayMessage(data) {
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('message');
+                messageElement.setAttribute('data-message-id', data.id);
+                if (data.userId === userId) {
+                    messageElement.classList.add('user-message');
+                }
+                
+                const nicknameSpan = document.createElement('span');
+                nicknameSpan.classList.add('user-id');
+                nicknameSpan.style.color = data.color || userColor;
+                nicknameSpan.textContent = `${data.nickname} (${data.userId}): `;
 
-            const actionsSpan = document.createElement('span');
-            actionsSpan.classList.add('message-actions');
-            if (data.userId === userId) {
-                const editBtn = document.createElement('button');
-                editBtn.innerHTML = '<i class="fas fa-edit"></i>';
-                editBtn.onclick = () => editMessage(data.id, data.text);
-                const deleteBtn = document.createElement('button');
-                deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
-                deleteBtn.onclick = () => deleteMessage(data.id);
-                actionsSpan.appendChild(editBtn);
-                actionsSpan.appendChild(deleteBtn);
-            }
-            const reactBtn = document.createElement('button');
-            reactBtn.innerHTML = '<i class="far fa-smile"></i>';
-            reactBtn.onclick = () => addReaction(data.id);
-            actionsSpan.appendChild(reactBtn);
-
-            const reactionsDiv = document.createElement('div');
-            reactionsDiv.classList.add('reactions');
-
-            messageElement.appendChild(nicknameSpan);
-            messageElement.appendChild(contentSpan);
-            messageElement.appendChild(timestampSpan);
-            messageElement.appendChild(actionsSpan);
-            messageElement.appendChild(reactionsDiv);
-            
-            chatMessages.appendChild(messageElement);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-
-        socket.on('user event', (message) => {
-            console.log('User event:', message);
-            const messageElement = document.createElement('div');
-            messageElement.classList.add('message', 'system-message');
-            messageElement.textContent = message;
-            chatMessages.appendChild(messageElement);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        });
-
-        socket.on('typing', (data) => {
-            if (data.userId !== userId) {
-                typingIndicator.textContent = `${data.nickname} is typing...`;
-                clearTimeout(typingTimeout);
-                typingTimeout = setTimeout(() => {
-                    typingIndicator.textContent = '';
-                }, 3000);
-            }
-        });
-
-        socket.on('message edited', (data) => {
-            const messageElement = document.querySelector(`[data-message-id="${data.id}"]`);
-            if (messageElement) {
-                const contentSpan = messageElement.querySelector('.message-content');
-                contentSpan.textContent = data.text;
+                const contentSpan = document.createElement('span');
+                contentSpan.classList.add('message-content');
                 contentSpan.style.fontFamily = data.style.font;
                 contentSpan.style.fontWeight = data.style.bold ? 'bold' : 'normal';
                 contentSpan.style.fontStyle = data.style.italic ? 'italic' : 'normal';
                 contentSpan.style.textDecoration = data.style.underline ? 'underline' : 'none';
+                contentSpan.textContent = data.text;
+
+                const timestampSpan = document.createElement('span');
+                timestampSpan.classList.add('timestamp');
+                timestampSpan.textContent = new Date().toLocaleTimeString();
+
+                const actionsSpan = document.createElement('span');
+                actionsSpan.classList.add('message-actions');
+                if (data.userId === userId) {
+                    const editBtn = document.createElement('button');
+                    editBtn.innerHTML = '<i class="fas fa-edit"></i>';
+                    editBtn.onclick = () => editMessage(data.id, data.text);
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+                    deleteBtn.onclick = () => deleteMessage(data.id);
+                    actionsSpan.appendChild(editBtn);
+                    actionsSpan.appendChild(deleteBtn);
+                }
+                const reactBtn = document.createElement('button');
+                reactBtn.innerHTML = '<i class="far fa-smile"></i>';
+                reactBtn.onclick = () => addReaction(data.id);
+                actionsSpan.appendChild(reactBtn);
+
+                const reactionsDiv = document.createElement('div');
+                reactionsDiv.classList.add('reactions');
+
+                messageElement.appendChild(nicknameSpan);
+                messageElement.appendChild(contentSpan);
+                messageElement.appendChild(timestampSpan);
+                messageElement.appendChild(actionsSpan);
+                messageElement.appendChild(reactionsDiv);
+                
+                chatMessages.appendChild(messageElement);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
             }
-        });
 
-        socket.on('message deleted', (id) => {
-            const messageElement = document.querySelector(`[data-message-id="${id}"]`);
-            if (messageElement) {
-                messageElement.remove();
+            socket.on('user event', (message) => {
+                console.log('User event:', message);
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('message', 'system-message');
+                messageElement.textContent = message;
+                chatMessages.appendChild(messageElement);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            });
+
+            socket.on('typing', (data) => {
+                if (data.userId !== userId) {
+                    typingIndicator.textContent = `${data.nickname} is typing...`;
+                    clearTimeout(typingTimeout);
+                    typingTimeout = setTimeout(() => {
+                        typingIndicator.textContent = '';
+                    }, 3000);
+                }
+            });
+
+            socket.on('message edited', (data) => {
+                const messageElement = document.querySelector(`[data-message-id="${data.id}"]`);
+                if (messageElement) {
+                    const contentSpan = messageElement.querySelector('.message-content');
+                    contentSpan.textContent = data.text;
+                    contentSpan.style.fontFamily = data.style.font;
+                    contentSpan.style.fontWeight = data.style.bold ? 'bold' : 'normal';
+                    contentSpan.style.fontStyle = data.style.italic ? 'italic' : 'normal';
+                    contentSpan.style.textDecoration = data.style.underline ? 'underline' : 'none';
+                }
+            });
+
+            socket.on('message deleted', (id) => {
+                const messageElement = document.querySelector(`[data-message-id="${id}"]`);
+                if (messageElement) {
+                    messageElement.remove();
+                }
+            });
+
+            socket.on('reaction added', (data) => {
+                const messageElement = document.querySelector(`[data-message-id="${data.messageId}"]`);
+                if (messageElement) {
+                    const reactionsDiv = messageElement.querySelector('.reactions');
+                    const reactionSpan = document.createElement('span');
+                    reactionSpan.classList.add('reaction');
+                    reactionSpan.textContent = `${data.reaction} ${data.count}`;
+                    reactionSpan.onclick = () => socket.emit('add reaction', { messageId: data.messageId, reaction: data.reaction });
+                    reactionsDiv.appendChild(reactionSpan);
+                }
+            });
+
+            chatInput.addEventListener('input', () => {
+                socket.emit('typing', { userId, nickname: userNickname });
+            });
+
+            function editMessage(id, text) {
+                editingMessageId = id;
+                chatInput.value = text;
+                chatInput.focus();
             }
-        });
 
-        socket.on('reaction added', (data) => {
-            const messageElement = document.querySelector(`[data-message-id="${data.messageId}"]`);
-            if (messageElement) {
-                const reactionsDiv = messageElement.querySelector('.reactions');
-                const reactionSpan = document.createElement('span');
-                reactionSpan.classList.add('reaction');
-                reactionSpan.textContent = `${data.reaction} ${data.count}`;
-                reactionSpan.onclick = () => socket.emit('add reaction', { messageId: data.messageId, reaction: data.reaction });
-                reactionsDiv.appendChild(reactionSpan);
+            function deleteMessage(id) {
+                socket.emit('delete message', id);
             }
-        });
 
-        chatInput.addEventListener('input', () => {
-            socket.emit('typing', { userId, nickname: userNickname });
-        });
+            function addReaction(messageId) {
+                // This function would typically open an emoji picker
+                // For simplicity, let's just add a default reaction
+                socket.emit('add reaction', { messageId, reaction: '👍' });
+            }
 
-        function editMessage(id, text) {
-            editingMessageId = id;
-            chatInput.value = text;
-            chatInput.focus();
+            boldBtn.addEventListener('click', () => toggleStyle('bold'));
+            italicBtn.addEventListener('click', () => toggleStyle('italic'));
+            underlineBtn.addEventListener('click', () => toggleStyle('underline'));
+
+            function toggleStyle(style) {
+                currentStyle[style] = !currentStyle[style];
+                updateButtonStyles();
+            }
+
+            function updateButtonStyles() {
+                boldBtn.classList.toggle('active', currentStyle.bold);
+                italicBtn.classList.toggle('active', currentStyle.italic);
+                underlineBtn.classList.toggle('active', currentStyle.underline);
+            }
+
+            const themes = {
+                light: { bg: '#ffffff', text: '#000000', chatBg: '#ffffff' },
+                dark: { bg: '#2c3e50', text: '#ecf0f1', chatBg: '#34495e' },
+                nature: { bg: '#a8e6cf', text: '#2c3e50', chatBg: '#dcedc1' },
+                ocean: { bg: '#3498db', text: '#ecf0f1', chatBg: '#85c1e9' }
+            };
+
+            themeSelector.addEventListener('change', (e) => {
+                const theme = themes[e.target.value];
+                document.body.style.backgroundColor = theme.bg;
+                document.body.style.color = theme.text;
+                document.getElementById('chat-container').style.backgroundColor = theme.chatBg;
+                if (e.target.value === 'dark') {
+                    document.body.classList.add('dark-theme');
+                } else {
+                    document.body.classList.remove('dark-theme');
+                }
+            });
+
+            window.addEventListener('beforeunload', () => {
+                socket.emit('disconnect');
+            });
+        } catch (error) {
+            console.error('An error occurred during initialization:', error);
+            alert('An error occurred during initialization. Please check the console for more information.');
         }
-
-        function deleteMessage(id) {
-            socket.emit('delete message', id);
+    });
+    </script>
+    <script>
+        window.onerror = function(message, source, lineno, colno, error) {
+            console.error('An error occurred:', message, 'at', source, lineno, colno);
+            alert('An error occurred. Please check the console for more information.');
         }
-
-        function addReaction(messageId) {
-            // This function would typically open an emoji picker
-            // For simplicity, let's just add a default reaction
-            socket.emit('add reaction', { messageId, reaction: '👍' });
-        }
-
-        boldBtn.addEventListener('click', () => toggleStyle('bold'));
-        italicBtn.addEventListener('click', () => toggleStyle('italic'));
-        underlineBtn.addEventListener('click', () => toggleStyle('under
+    </script>
+</body>
+</html>
